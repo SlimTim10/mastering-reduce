@@ -1,0 +1,289 @@
+* Mastering Reduce
+
+** Preface
+This article was inspired by [[http://ertes.eu/tutorial/foldr.html][Mastering foldr]] by ertes. The page showed examples of using equational reasoning in Haskell to refactor a recursive function into using ~foldr~. Unfortunately the website has since gone down.
+
+** Reduce defined
+In functional languages, like Haskell, JavaScript's [[https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce][reduce]] is typically called ~fold~ because it can be thought of as folding a list up with a function. To be more specific, ~reduce~ would be ~foldl~, or left-associative folding, and ~reduceRight~ is ~foldr~, or right-associative folding. For example, we can fold up a list of numbers with addition to reduce it into a single value.
+
+~foldl/reduce: ((((((((1 + 2) + 3) + 4) + 5) + ...)~
+
+~foldr/reduceRight: 1 + (2 + (3 + (4 + (5 + ...)))~
+
+Fold is a very powerful concept. Graham Hutton wrote about the [[http://www.cs.nott.ac.uk/~pszgmh/fold.pdf][universality and expressiveness of fold]]. Notably both ~filter~ and ~map~ can easily be implemented with a fold.
+
+In JavaScript, ~reduce~ and ~reduceRight~ could be defined as follows, using recursion.
+
+#+BEGIN_SRC js
+Array.prototype.reduce = function(f, z) {
+  const [head, ...tail] = this
+  
+  if (head === undefined) return z
+
+  const next = f(z, head)
+  return tail.reduce(f, next)
+}
+#+END_SRC
+
+#+BEGIN_SRC js
+Array.prototype.reduceRight = function(f, z) {
+  const [head, ...tail] = this
+
+  if (head === undefined) return z
+
+  return f(tail.reduceRight(f, z), head)
+}
+#+END_SRC
+
+Notice that the function is dealing with two separate cases. Either the operating list is empty or it is not. We can write a pseudo-code version of ~reduceRight~ as follows.
+
+#+BEGIN_SRC js
+[].reduceRight(f, z) = z
+[head, ...tail].reduceRight(f, z) = f(tail.reduceRight(f, z), head)
+#+END_SRC
+
+This will allow us to use equational reasoning to refactor recursive functions into using ~reduceRight~.
+
+#+BEGIN_QUOTE
+Note: As far as we're concerned, it doesn't matter that ~reduce~ and ~reduceRight~ may be defined using iteration instead of recursion. The concept is the same and it is easier to reason about the recursive definitions. We can let the internal definitions handle performance optimizations.
+#+END_QUOTE
+
+** Example: Reverse
+
+*** The explicit recursive definition
+#+BEGIN_SRC js
+const reverseExplicit = ([head, ...tail]) => {
+  if (head === undefined) return []
+
+  return reverseExplicit(tail).concat([head])
+}
+console.log('reverseExplicit', reverseExplicit([1,2,3]))
+#+END_SRC
+
+*** Seeing it in action
+#+BEGIN_SRC js
+reverseExplicit([1,2,3])
+= reverseExplicit([2,3]).concat([1]) // by applying the recursive function
+= ( reverseExplicit([3]).concat([2]) ).concat([1])
+= ( ( reverseExplicit([]).concat([3]) ).concat([2]) ).concat([1])
+= ( ( [].concat([3]) ).concat([2]) ).concat([1]) // by applying the base case: reverseExplicit([]) = []
+= ( [3].concat([2]) ).concat([1]) // by concatenating
+= [3,2].concat([1])
+= [3,2,1]
+#+END_SRC
+
+Why would we /not/ want to use such a function in JavaScript? Well, notice how many times the function gets recursively called. If we have a list of 10,000 items, the function gets called that many times recursively! In languages designed for functional programming, this wouldn't be a problem. But in the current state and foreseeable future of JavaScript, this builds up memory in the call stack until we run out!
+
+#+BEGIN_SRC js
+const testArray = [...Array(10000)].map((_, i) => i)
+reverseExplicit(testArray)
+#+END_SRC
+
+If you run this code, you will likely get this error: ~RangeError: Maximum call stack size exceeded~. (If not, try increasing the array size.) So clearly, this function does not scale well.
+
+*** Reduce definition (1)
+#+BEGIN_SRC js
+[].reduceRight(f, z) = z
+[head, ...tail].reduceRight(f, z) = f(tail.reduceRight(f, z), head)
+#+END_SRC
+
+*** Reverse definition (2)
+#+BEGIN_SRC js
+reverseExplicit([]) = []
+reverseExplicit([head, ...tail]) = reverseExplicit(tail).concat([head])
+#+END_SRC
+
+A pseudo-code version of ~reverseExplicit~.
+
+*** Template (3)
+#+BEGIN_SRC js
+reverse(xs) = xs.reduceRight(_f, _z)
+#+END_SRC
+
+This is our goal. We want to define ~reverse~ in terms of ~reduceRight~. We need to solve for ~_f~ and ~_z~.
+
+*** Case ~xs = []~ lets us simply solve for ~_z~
+#+BEGIN_SRC js
+reverse([]) = [].reduceRight(_f, _z) = []
+_z = [] // by (1)
+#+END_SRC
+
+*** Updating the template (3)
+#+BEGIN_SRC js
+reverse(xs) = xs.reduceRight(_f, [])
+#+END_SRC
+
+*** Case ~xs != []~ lets us solve for ~_f~
+By using the template (3), we have
+
+#+BEGIN_SRC js
+reverse([head, ...tail]) = [head, ...tail].reduceRight(_f, [])
+#+END_SRC
+
+Applying definition (1) on the right side, we get
+
+#+BEGIN_SRC js
+reverse([head, ...tail]) = _f(tail.reduceRight(_f, []), head)
+#+END_SRC
+
+Substituting the template (3) on the right side, we get
+
+#+BEGIN_SRC js
+reverse([head, ...tail]) = _f(reverse(tail), head)
+#+END_SRC
+
+Applying definition (2) on the left side, we get
+
+#+BEGIN_SRC js
+reverse(tail).concat([head]) = _f(reverse(tail), head)
+#+END_SRC
+
+At this point, we can factor out ~reverse(tail)~. Let ~rev = reverse(tail)~
+
+#+BEGIN_SRC js
+rev.concat([head]) = _f(rev, head)
+#+END_SRC
+
+Now we can simply solve for ~_f~
+
+#+BEGIN_SRC js
+_f(rev, head) = rev.concat([head]) // swap left and right side
+_f = (rev, head) => rev.concat([head])
+#+END_SRC
+
+*** Updating the template with our final solution
+#+BEGIN_SRC js
+reverse(xs) = xs.reduceRight((rev, head) => rev.concat([head]), [])
+#+END_SRC
+
+*** The resulting function
+#+BEGIN_SRC js
+const reverse = xs => xs.reduceRight((rev, head) => rev.concat([head]), [])
+#+END_SRC
+
+** Example: Captcha
+
+*** Problem definition
+
+Taken from: https://adventofcode.com/2017/day/1
+
+#+BEGIN_QUOTE
+The captcha requires you to review a sequence of digits (your puzzle input) and find the sum of all digits that match the next digit in the list. The list is circular, so the digit after the last digit is the first digit in the list.
+
+For example:
+
+1122 produces a sum of 3 (1 + 2) because the first digit (1) matches the second digit and the third digit (2) matches the fourth digit.
+1111 produces 4 because each digit (all 1) matches the next.
+1234 produces 0 because no digit matches the next.
+91212129 produces 9 because the only digit that matches the next one is the last digit, 9.
+#+END_QUOTE
+
+*** Problem solution
+
+#+BEGIN_SRC js
+const go = xs => {
+  const [head, ...tail] = xs
+  if (head === undefined) return 0
+  return (head === tail[0])
+    ? head + go(tail)
+    : go(tail)
+}
+
+const captcha = ds => {
+  const xs = [...ds, ds[0]]
+  return go(xs)
+}
+#+END_SRC
+
+We are given a list of digits. We start off by appending the first digit to the end, for the circular nature. Then, we use a helper function ~go~ which recursively iterates over each item in the list, comparing it to the first item in the tail of the list (effectively the adjacent item) and summing the digits accordingly.
+
+The partial use of ~tail~ in ~go~ (i.e., ~tail[0]~) will be limiting in the refactoring steps. Fortunately, we can simply provide the tail of the list as a second argument.
+
+#+BEGIN_SRC js
+const go = xs => ys => {
+  const [head, ...tail] = xs
+  if (head === undefined) return 0
+  return (head === ys[0])
+    ? head + go(tail)(ys.slice(1))
+    : go(tail)(ys.slice(1))
+}
+
+const captcha = ds => {
+  const xs = [...ds, ds[0]]
+  const ys = xs.slice(1)
+  return go(xs)(ys)
+}
+#+END_SRC
+
+*** The explicit recursive definition
+
+#+BEGIN_SRC js
+const goExplicit = xs => ys => {
+  const [head, ...tail] = xs
+  if (head === undefined) return 0
+  return (head === ys[0])
+    ? head + goExplicit(tail)(ys.slice(1))
+    : goExplicit(tail)(ys.slice(1))
+}
+#+END_SRC
+
+*** Reduce definition (1)
+#+BEGIN_SRC js
+[].reduceRight(f, z) = z
+[head, ...tail].reduceRight(f, z) = f(tail.reduceRight(f, z), head)
+#+END_SRC
+
+*** Go definition (2)
+#+BEGIN_SRC js
+goExplicit([])(ys) = 0
+goExplicit([head, ...tail])(ys) = (head === ys[0])
+  ? head + goExplicit(tail)(ys.slice(1)) 
+  : goExplicit(tail)(ys.slice(1))
+#+END_SRC
+
+*** Template (3)
+#+BEGIN_SRC js
+go(xs)(ys) = xs.reduceRight(_f, _z)(ys)
+#+END_SRC
+
+*** Case ~xs = []~ lets us simply solve for ~_z~
+#+BEGIN_SRC js
+go([])(ys) = [].reduceRight(_f, _z)(ys) = 0
+_z(ys) = 0 // by (1)
+_z = ys => 0
+_z = consume => 0 // renaming for clarity
+#+END_SRC
+
+*** Updating the template (3)
+#+BEGIN_SRC js
+go(xs)(ys) = xs.reduceRight(_f, consume => 0)(ys)
+#+END_SRC
+
+*** Case ~xs != []~ lets us solve for ~_f~
+#+BEGIN_SRC js
+go([head, ...tail])(ys) = [head, ...tail].reduceRight(_f, consume => 0)(ys)
+go([head, ...tail])(ys) = _f(tail.reduceRight(_f, consume => 0), head)(ys) // applying (1)
+go([head, ...tail])(ys) = _f(go(tail), head)(ys) // substituting (3)
+(head === ys[0]) ? head + go(tail)(ys.slice(1)) : go(tail)(ys.slice(1)) = _f(go(tail), head)(ys) // applying (2)
+(head === ys[0]) ? head + more(ys.slice(1)) : more(ys.slice(1)) = _f(more, head)(ys) // let go(tail) = more
+_f(more, head)(ys) = (head === ys[0]) ? head + more(ys.slice(1)) : more(ys.slice(1)) // swapping sides
+_f = (more, head) => ys => (head === ys[0]) ? head + more(ys.slice(1)) : more(ys.slice(1)) // solving for _f
+#+END_SRC
+
+*** Updating the template with our final solution
+#+BEGIN_SRC js
+const f = (more, head) => ys =>
+  (head === ys[0])
+  ? head + more(ys.slice(1))
+  : more(ys.slice(1))
+go(xs)(ys) = xs.reduceRight(f, consume => 0)(ys)
+#+END_SRC
+
+*** The resulting function
+#+BEGIN_SRC js
+const f = (more, head) => ys =>
+  (head === ys[0])
+  ? head + more(ys.slice(1))
+  : more(ys.slice(1))
+const go = xs => ys => xs.reduceRight(f, consume => 0)(ys)
+#+END_SRC
