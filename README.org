@@ -1,7 +1,7 @@
 * Mastering Reduce
 
 ** Preface
-This article was inspired by [[http://ertes.eu/tutorial/foldr.html][Mastering foldr]] by ertes. The page showed examples of using equational reasoning in Haskell to refactor a recursive function into using ~foldr~. Unfortunately the website has since gone down.
+This article was inspired by [[http://ertes.eu/tutorial/foldr.html][Mastering foldr]] by ertes, which shows examples of using equational reasoning in Haskell to refactor a recursive function into using ~foldr~.
 
 ** Reduce defined
 In functional languages, like Haskell, JavaScript's [[https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce][reduce]] is typically called ~fold~ because it can be thought of as folding a list up with a function. To be more specific, ~reduce~ would be ~foldl~, or left-associative folding, and ~reduceRight~ is ~foldr~, or right-associative folding. For example, we can fold up a list of numbers with addition to reduce it into a single value.
