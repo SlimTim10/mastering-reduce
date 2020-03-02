@@ -6,9 +6,9 @@ This article was inspired by [[http://ertes.eu/tutorial/foldr.html][Mastering fo
 ** Reduce defined
 In functional languages, like Haskell, JavaScript's [[https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce][reduce]] is typically called ~fold~ because it can be thought of as folding a list up with a function. To be more specific, ~reduce~ would be ~foldl~, or left-associative folding, and ~reduceRight~ is ~foldr~, or right-associative folding. For example, we can fold up a list of numbers with addition to reduce it into a single value.
 
-~foldl/reduce: ((((((((1 + 2) + 3) + 4) + 5) + ...)~
+~foldl/reduce: (((((1 + 2) + 3) + 4) + 5) + ...)~
 
-~foldr/reduceRight: 1 + (2 + (3 + (4 + (5 + ...)))~
+~foldr/reduceRight: 1 + (2 + (3 + (4 + (5 + ...))))~
 
 Fold is a very powerful concept. Graham Hutton wrote about the [[http://www.cs.nott.ac.uk/~pszgmh/fold.pdf][universality and expressiveness of fold]]. Notably both ~filter~ and ~map~ can easily be implemented with a fold.
 
